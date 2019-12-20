@@ -1,0 +1,153 @@
+---
+#
+AWSTemplateFormatVersion: '2010-09-09'
+Description: MediaWorks Nano Collection Web Application (Interview Test)
+Parameters:
+  ServiceName:
+    Description: Becomes the short hostname used in DNS, Naming, Comments, and other
+      things.
+    Type: String
+    MinLength: 1
+    MaxLength: 255
+    AllowedPattern: "^[a-zA-Z][-a-zA-Z0-9]*$"
+  Environment:
+    Description: The Runtime Environment
+    Type: String
+  CreatedBy:
+    Description: CostCenter for Billing
+    Type: String
+    MinLength: 1
+    MaxLength: 255
+  ResourceBucketName:
+    Description: CloudFormation Resources S3 Bucket Name
+    Type: String
+    MinLength: 0
+    MaxLength: 255
+  AMI:
+    Description: Amazon Machine Image Id Used to Launch Cluster
+    Type: AWS::EC2::Image::Id
+  KeyName:
+    Description: Name of an existing EC2 KeyPair
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+  MinClusterSize:
+    Description: Minimum AutoScale Group Size
+    Type: Number
+    Default: '1'
+  MaxClusterSize:
+    Description: Maximum AutoScale Group Size
+    Type: Number
+    Default: '5'
+  DesiredCapacity:
+    Description: Initial Desired Cluster Size
+    Type: Number
+    Default: '2'
+  VPCId:
+    Description: VPC Id
+    Type: AWS::EC2::VPC::Id
+  PrivateSubnet1:
+    Description: 'Id of Private Subnet #1'
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnet2:
+    Description: 'Id of Private Subnet #2'
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnet3:
+    Description: 'Id of Private Subnet #1'
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnet4:
+    Description: 'Id of Private Subnet #2'
+    Type: AWS::EC2::Subnet::Id
+  AZ1:
+    Description: 'Name Availability Zone #1'
+    Type: AWS::EC2::AvailabilityZone::Name
+  AZ2:
+    Description: 'Name Availability Zone #2'
+    Type: AWS::EC2::AvailabilityZone::Name
+  AZ3:
+    Description: 'Name Availability Zone #3'
+    Type: AWS::EC2::AvailabilityZone::Name
+  AZ4:
+    Description: 'Name Availability Zone #4'
+    Type: AWS::EC2::AvailabilityZone::Name
+  AdminPort:
+    Description: Administration port (22 for linux)
+    Type: String
+    MinLength: 1
+    MaxLength: 255
+  AdmCidrBlock:
+    Description: Administration Cidrblock (internal only)
+    Type: String
+    MinLength: 1
+    MaxLength: 255
+  InstanceType:
+    Description: Administration Cidrblock (internal only)
+    Type: String
+    MinLength: 1
+    MaxLength: 255
+Resources:
+  Cluster:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        WillReplace: false
+    Properties:
+      VPCZoneIdentifier:
+      - Ref: PrivateSubnet1
+      - Ref: PrivateSubnet2
+      AvailabilityZones:
+      - Ref: AZ1
+      - Ref: AZ2
+      LaunchConfigurationName: !Ref Instance
+      HealthCheckType: EC2
+      HealthCheckGracePeriod: 300
+      MinSize:
+        Ref: MinClusterSize
+      MaxSize:
+        Ref: MaxClusterSize
+      DesiredCapacity:
+        Ref: DesiredCapacity
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Join:
+          - "-"
+          - - Ref: ServiceName
+            - Ref: Environment
+        PropagateAtLaunch: 'true'
+      - Key: CreatedBy
+        Value: !Ref CreatedBy
+        PropagateAtLaunch: 'true'
+  Instance:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      InstanceType:
+        Ref: InstanceType
+      ImageId:
+        Ref: AMI
+      SecurityGroups:
+      - !Ref InstanceSecurityGroup
+      KeyName:
+        Ref: KeyName
+  InstanceSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      VpcId: !Ref VPCId
+      GroupDescription: !Join
+        - ""
+        - - !Ref ServiceName
+          - web security group
+      SecurityGroupIngress:
+        -
+          IpProtocol: tcp
+          FromPort: !Ref AdminPort
+          ToPort: !Ref AdminPort
+          CidrIp : !Ref AdmCidrBlock
+      Tags:
+      - Key: Name
+        Value: !Join ["-", [!Sub "${ServiceName}", !Sub "${Environment}"]]
+      - Key: CreatedBy
+        Value: !Ref CreatedBy
+Outputs: 
+  StackName:
+    Description: 'Stack name'
+    Value: !Sub '${AWS::StackName}'
